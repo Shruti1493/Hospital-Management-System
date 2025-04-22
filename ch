@@ -1,205 +1,135 @@
-'use strict';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import { BrowserRouter as Router } from 'react-router-dom';
-import { Layout, Tooltip } from 'antd';
+import { Layout, Tooltip, Button } from 'antd';
 import * as _ from 'lodash';
-import LineageDag from '../src/index.tsx';
-import { mockData } from './mock_data/data';
+import LineageDag from '../src/index.tsx'; // Adjust the path as needed
+import { mockData } from './mock_data/data'; // Adjust the path as needed
 
 import 'antd/dist/antd.css';
 import './index.less';
 
 import {
   BorderOuterOutlined,
-  DownSquareOutlined,
-  CloseCircleOutlined,
-  StarOutlined,
 } from '@ant-design/icons';
 
-const { Header } = Layout;
+const Com = () => {
+  const { tables } = mockData;
+  const validTableIds = new Set(tables.map((t) => t.id));
+  const relations = mockData.relations.filter(
+    (rel) => validTableIds.has(rel.srcTableId) && validTableIds.has(rel.tgtTableId)
+  );
 
-class Com extends React.Component {
-  constructor(props) {
-    super(props);
-    const { tables } = mockData;
-    const validTableIds = new Set(tables.map((t) => t.id));
-    const relations = mockData.relations.filter(
-      (rel) => validTableIds.has(rel.srcTableId) && validTableIds.has(rel.tgtTableId)
-    );
+  const [state, setState] = useState({
+    tables,
+    relations,
+    canvas: null,
+    centerId: null,
+    showLineage: false,
+  });
 
-    this.state = {
-      tables,
-      relations,
-      canvas: null,
-      actionMenu: [
-        {
-          icon: <StarOutlined />,
-          key: 'star',
-          onClick: () => {
-            alert('点击收藏！');
-          },
-        },
-      ],
-    };
+  const columns = [
+    {
+      key: 'name',
+      primaryKey: true,
+    },
+    {
+      key: 'title',
+    },
+  ];
 
-    this.columns = [
-      {
-        key: 'name',
-        primaryKey: true,
+  const operator = [
+    {
+      id: 'isExpand',
+      name: 'Expand/Collapse Lineage',
+      icon: (
+        <Tooltip title="Expand/Collapse Lineage">
+          <BorderOuterOutlined />
+        </Tooltip>
+      ),
+      onClick: (nodeData) => {
+        let tables = state.tables;
+        let table = _.find(tables, (item) => item.id === nodeData.id);
+        if (!table) return;
+        table.isCollapse = !table.isCollapse;
+        setState({
+          ...state,
+          tables,
+          centerId: table.id,
+        });
       },
-      {
-        key: 'title',
-      },
-    ];
+    },
+  ];
 
-    this.operator = [
-      {
-        id: 'isExpand',
-        name: '展开/收缩血缘',
-        icon: (
-          <Tooltip title="展开/收缩血缘">
-            <BorderOuterOutlined />
-          </Tooltip>
-        ),
-        onClick: (nodeData) => {
-          let tables = _.cloneDeep(this.state.tables);
-          let table = _.find(tables, (item) => item.id === nodeData.id);
+  const handleSubmit = () => {
+    setState({
+      ...state,
+      showLineage: true,
+    });
+  };
 
-          const tableIds = new Set(tables.map((t) => t.id));
-          const relatedRelations = this.state.relations.filter(
-            (rel) => rel.srcTableId === table.id || rel.tgtTableId === table.id
-          );
+  useEffect(() => {}, []);
 
-          const unknownRelatedIds = relatedRelations
-            .map((rel) =>
-              rel.srcTableId === table.id ? rel.tgtTableId : rel.srcTableId
-            )
-            .filter((id) => !tableIds.has(id));
+  return (
+    <div>
+      {/* Trigger button to show lineage */}
+      <div style={{ marginBottom: 20 }}>
+        <Button type="primary" onClick={handleSubmit}>
+          Show Lineage
+        </Button>
+      </div>
 
-          if (unknownRelatedIds.length > 0) {
-            alert(
-              `Cannot expand. Missing related tables: ${unknownRelatedIds.join(', ')}`
-            );
-            return;
-          }
-
-          table.isCollapse = !!!table.isCollapse;
-
-          this.setState({
-            tables,
-            centerId: table.id,
-          });
-        },
-      },
-      {
-        id: 'explore',
-        name: '探索血缘',
-        icon: (
-          <Tooltip title="探索血缘">
-            <DownSquareOutlined />
-          </Tooltip>
-        ),
-        onClick: (nodeData) => {
-          let tables = _.cloneDeep(this.state.tables);
-          let table = _.find(tables, (item) => item.id === nodeData.id);
-
-          const tableIds = new Set(tables.map((t) => t.id));
-          const relatedRelations = this.state.relations.filter(
-            (rel) => rel.srcTableId === table.id || rel.tgtTableId === table.id
-          );
-
-          const relatedTableIds = relatedRelations
-            .map((rel) =>
-              rel.srcTableId === table.id ? rel.tgtTableId : rel.srcTableId
-            )
-            .filter((id) => tableIds.has(id));
-
-          if (relatedTableIds.length > 0) {
-            alert(`Related tables: ${relatedTableIds.join(', ')}`);
-          } else {
-            alert('No related tables found.');
-          }
-        },
-      },
-      {
-        id: 'remove',
-        name: '删除节点',
-        icon: (
-          <Tooltip title="删除节点">
-            <CloseCircleOutlined />
-          </Tooltip>
-        ),
-        onClick: (nodeData) => {
-          let _tables = _.cloneDeep(this.state.tables);
-          let index = _.findIndex(_tables, (item) => item.id === nodeData.id);
-          _tables.splice(index, 1);
-
-          let remainingTableIds = new Set(_tables.map((t) => t.id));
-          let _relations = this.state.relations.filter(
-            (r) => remainingTableIds.has(r.srcTableId) && remainingTableIds.has(r.tgtTableId)
-          );
-
-          this.setState({
-            tables: _tables,
-            relations: _relations,
-          });
-        },
-      },
-    ];
-  }
-
-  render() {
-    return (
-      <LineageDag
-        tables={this.state.tables}
-        relations={this.state.relations}
-        columns={this.columns}
-        operator={this.operator}
-        centerId={this.state.centerId}
-        onLoaded={(canvas) => {
-          this.setState({ canvas });
-        }}
-        config={{
-          titleRender: (title, node) => {
-            return (
-              <div
-                className="title-test"
-                onClick={() => {
-                  let tables = _.cloneDeep(this.state.tables);
-                  tables.forEach((item) => {
-                    item.name = 'title change';
-                  });
-                  this.setState({ tables }, () => {
-                    this.state.canvas.nodes.forEach((item) => {
-                      item.redrawTitle();
+      {state.showLineage && (
+        <LineageDag
+          tables={state.tables}
+          relations={state.relations}
+          columns={columns}
+          operator={operator}
+          centerId={state.centerId}
+          onLoaded={(canvas) => {
+            setState({ ...state, canvas });
+          }}
+          config={{
+            titleRender: (title, node) => {
+              return (
+                <div
+                  className="title-test"
+                  onClick={() => {
+                    let tables = _.cloneDeep(state.tables);
+                    tables.forEach((item) => {
+                      item.name = 'title change';
                     });
-                  });
-                }}
-              >
-                {title}
-              </div>
-            );
-          },
-          minimap: {
-            enable: true,
-          },
-        }}
-        actionMenu={this.state.actionMenu}
-      />
-    );
-  }
-}
+                    setState({ ...state, tables }, () => {
+                      state.canvas.nodes.forEach((item) => {
+                        item.redrawTitle();
+                      });
+                    });
+                  }}
+                >
+                  {title}
+                </div>
+              );
+            },
+            minimap: {
+              enable: true,
+            },
+          }}
+          actionMenu={state.actionMenu}
+        />
+      )}
+    </div>
+  );
+};
 
-ReactDOM.render(
-  <Router>
-    <Layout>
-      <Header className="header">DTDesign-React数据血缘图</Header>
+const App = () => {
+  return (
+    <Router>
       <Layout>
         <Com />
       </Layout>
-    </Layout>
-  </Router>,
-  document.getElementById('main')
-);
+    </Router>
+  );
+};
+
+ReactDOM.render(<App />, document.getElementById('main'));
